@@ -10,9 +10,9 @@ logging.basicConfig(
     datefmt='(%H:%M:%S)'
 )
 
+server = Server()
 
-
-async def run(port, bootstrap_node,username=None,ip=None)-> (bool,Server):
+async def run(port, bootstrap_node,username=None,ip=None):
     """
         Connects to a peer's DHT server.
 
@@ -22,26 +22,25 @@ async def run(port, bootstrap_node,username=None,ip=None)-> (bool,Server):
 
         The subsequent nodes connecting to the network should have the first node's ip and port as bootstrap_ip and bootstrap_port
     """
-    server = Server()
+    
     await server.listen(port)
     if bootstrap_node:
         try:
             bootstrap_ip, bootstrap_port = bootstrap_node.split(':')
             await server.bootstrap([(bootstrap_ip, int(bootstrap_port))])
             if username == "INIT":
-                return False,server
-            task = await setusername(server,username, ip, port)
+                event = asyncio.Event()
+                await event.wait()
             event = asyncio.Event()
             await event.wait()
             #return task,server
         except Exception as e:  # Broader exception handling for debugging
             logging.error(f"Error during bootstrap: {e}")
-            return False,server
+            pass
     else:
         logging.info("No bootstrap information provided, starting as the first node in the network.")
         event = asyncio.Event()
         await event.wait()
-        return True,server
     
 
 def finished(found):
@@ -113,14 +112,14 @@ async def main():
 
     args = parse_args()
     # create a node on the network
-    success, server = False, None
+    success= False
     while not success:
         try:
             username = input("Username: ")
             node ={"ip":"127.0.0.1","port":args.port}# Node(username,port=args.port)
-            success, server = await run(args.port, args.bootstrap, username, "127.0.0.1")
-            if not success:
-                logging.error("Failed to start the server. Please try again.")
+            asyncio.create_task(await run(args.port, args.bootstrap, username, "127.0.0.1"))
+            success = await setusername(server,username)
+            logging.error("Failed to start the server. Please try again.")
         except ValueError as exc:
             logging.error(f"Error with username: {str(exc)}")
      # Create a background task for the server
