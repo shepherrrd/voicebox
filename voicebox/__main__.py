@@ -23,15 +23,14 @@ async def run(port, bootstrap_node,username=None,ip=None):
         The subsequent nodes connecting to the network should have the first node's ip and port as bootstrap_ip and bootstrap_port
     """
     
+    event = asyncio.Event()
     await server.listen(port)
     if bootstrap_node:
         try:
             bootstrap_ip, bootstrap_port = bootstrap_node.split(':')
             await server.bootstrap([(bootstrap_ip, int(bootstrap_port))])
             if username == "INIT":
-                event = asyncio.Event()
                 await event.wait()
-            event = asyncio.Event()
             await event.wait()
             #return task,server
         except Exception as e:  # Broader exception handling for debugging
@@ -39,7 +38,6 @@ async def run(port, bootstrap_node,username=None,ip=None):
             pass
     else:
         logging.info("No bootstrap information provided, starting as the first node in the network.")
-        event = asyncio.Event()
         await event.wait()
     
 
