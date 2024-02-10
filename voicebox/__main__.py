@@ -2,6 +2,7 @@ import logging
 import argparse
 from kademlia.network import Server
 from voicebox.node import Node, MicrophoneStreamerThread
+from twisted.internet import reactor
 
 
 logging.basicConfig(
@@ -18,7 +19,7 @@ async def run(port, bootstrap_ip=None, bootstrap_port=None):
 
         This function basically adds this machine to a DHT network
     """
-    await server.listen(port)
+    reactor.listenUDP(bootstrap_port, server.protocol)
     if bootstrap_ip and bootstrap_port:
         try:
             await server.bootstrap([(bootstrap_ip, bootstrap_port)])
@@ -32,6 +33,9 @@ async def run(port, bootstrap_ip=None, bootstrap_port=None):
             return False
     return True
 
+def finished(found):
+    # The DHT network is ready
+    print("DHT network is ready")
 
 async def setusername(username, ip, port):
     """
