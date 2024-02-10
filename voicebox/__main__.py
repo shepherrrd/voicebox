@@ -1,54 +1,62 @@
 import logging
-import argparse
+import asyncio
 from kademlia.network import Server
 from voicebox.node import Node, MicrophoneStreamerThread
-from twisted.internet import reactor
-
+import argparse
 
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s %(name)s %(levelname)-8s  %(message)s',
     datefmt='(%H:%M:%S)'
 )
-server = Server()
 
 
-async def run(port, bootstrap_ip=None, bootstrap_port=None):
+
+async def run(port, bootstrap_node,username=None,ip=None):
     """
         Connects to a peer's DHT server.
 
         This function basically adds this machine to a DHT network
+
+        The first node connecting to the network should not have a bootstrap_ip or bootstrap_port
+
+        The subsequent nodes connecting to the network should have the first node's ip and port as bootstrap_ip and bootstrap_port
     """
-    reactor.listenUDP(bootstrap_port, server.protocol)
-    if bootstrap_ip and bootstrap_port:
+    server = Server()
+    await server.listen(port)
+    if bootstrap_node:
         try:
-            await server.bootstrap([(bootstrap_ip, bootstrap_port)])
-        except OSError as exc:
-            logging.error(
-                "Error bootstrapping with node %s:%s = %s",
-                bootstrap_ip,
-                bootstrap_port,
-                str(exc)
-            )
-            return False
-    return True
+            bootstrap_ip, bootstrap_port = bootstrap_node.split(':')
+            await server.bootstrap([(bootstrap_ip, int(bootstrap_port))])
+            if username == "INIT":
+                return False,server
+            task = await setusername(server,username, ip, port)
+            
+        except Exception as e:  # Broader exception handling for debugging
+            logging.error(f"Error during bootstrap: {e}")
+            return False,server
+    else:
+        logging.info("No bootstrap information provided, starting as the first node in the network.")
+        event = asyncio.Event()
+        await event.wait()
+        return True,server
 
 def finished(found):
     # The DHT network is ready
     print("DHT network is ready")
 
-async def setusername(username, ip, port):
+async def setusername(server:Server,username, ip, port):
     """
         Set's a username on the DHT
     """
     result = await server.get(username)
     if result is not None:
         return False
-    await server.set(username, ip + ":" + str(port))
+    await server.set(username, f"{ip}:{port}")
     return True
 
 
-async def getusername(username):
+async def getusername(server:Server,username):
     """
         Get's connection info linked to a username on DHT
     """
@@ -73,17 +81,10 @@ def parse_args():
     )
 
     parser.add_argument(
-        '--bootstrap_port',
-        type=int,
-        default=5678,
-        help='Bootstrap node port number'
-    )
-
-    parser.add_argument(
-        '--bootstrap_ip',
+        '--bootstrap',
         type=str,
-        default="192.168.0.1",
-        help='Bootstrap node IP address'
+        required=False,
+        help='Bootstrap like this <bootstrap_ip>:<bootstrap_port>'
     )
 
     args = parser.parse_args()
@@ -102,26 +103,27 @@ def initiate_call(node: Node):
     node.connect_to_machine_with_username(username)
 
 
-def main():
+async def main():
     """
         Main function that puts everything all together
     """
 
     args = parse_args()
-
     # create a node on the network
     while True:
         try:
-            username = input("Username: ")
-
-            node = Node(username, port=args.port)
+            username = input("Username: ")            
+            node = {"ip" : "127.0.0.1", "port" : args.port}#Node(username, port=args.port)
+            success,server = await run(args.port,args.bootstrap, username, "127.0.0.1")
+            while not success:
+                username = input("Username: ")
             break
         except ValueError as exc:
             logging.error("Error with username: %s", str(exc))
 
     # Welcome message
     print(
-        f"Welcome {username}! Others can call you at {node.ip}:{node.port}"
+        f"Welcome {username}! Others can call you at:{args.port}"
     )
 
     # Initiate microphone
@@ -159,3 +161,8 @@ def main():
 
             print("Type 'call' to call, 'mute' to toggle microphone, 'send' to message")
             print("Type 'view' or 'view_machines' to view connected machines")
+        
+        elif opt in ('search', 'ss'):
+            name = await getusername(server,input("Username: "))
+            print(f"The name is {name}")
+            

@@ -9,7 +9,7 @@ Voice box is an open source python tool for voice calls and messaging over LAN. 
 ## How to Run
 
 1. Run `pip install -r requirements.txt` to install all requirements.
-2. Run `python your_script.py --port=5679 --bootstrap_ip=[IP of first node] --bootstrap_port=5678` or `python -m networking`.
+2. Run `python your_script.py --port=5679 --bootstrap[<ip of the boostrap node>:<port of the boottrap node>]` or `python -m networking`.
 3. Input a username
 4. Do the same thing on another machine. Make sure it's connected to the same network.
 5. Type the command `call`.
